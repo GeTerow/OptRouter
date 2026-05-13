@@ -119,8 +119,9 @@ class _AddressInputScreenState extends State<AddressInputScreen> {
       final currentStart = _startController.text.trim();
 
       setState(() => _loading = true);
-      final extracted = await context.read<AppState>().scanImage(
-            image.path,
+      final extracted = await context.read<AppState>().scanImageBytes(
+            await image.readAsBytes(),
+            filename: image.name,
             baseAddresses: currentAddresses,
           );
 

@@ -13,6 +13,7 @@ void main() {
         'totalTime': '20 min',
         'totalDistance': '8 km',
         'numberOfStops': 2,
+        'mapsUrl': 'https://www.google.com/maps/dir/?api=1',
       });
 
       expect(
@@ -22,6 +23,7 @@ void main() {
       expect(route.totalTime, '20 min');
       expect(route.totalDistance, '8 km');
       expect(route.numberOfStops, 2);
+      expect(route.mapsUrl, 'https://www.google.com/maps/dir/?api=1');
     });
 
     test('fromJson rejects invalid stops contract', () {

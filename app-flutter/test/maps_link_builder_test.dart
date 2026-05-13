@@ -41,5 +41,23 @@ void main() {
         'https://www.google.com/maps',
       );
     });
+
+    test('uses backend mapsUrl when available', () {
+      const route = OptimizedRoute(
+        stops: [
+          Stop(address: 'Rua A, São Paulo'),
+          Stop(address: 'Rua B, São Paulo'),
+        ],
+        totalTime: '10 min',
+        totalDistance: '3 km',
+        numberOfStops: 2,
+        mapsUrl: 'https://www.google.com/maps/dir/?api=1&origin=A',
+      );
+
+      expect(
+        MapsLinkBuilder.googleDirectionsUrl(route),
+        'https://www.google.com/maps/dir/?api=1&origin=A',
+      );
+    });
   });
 }

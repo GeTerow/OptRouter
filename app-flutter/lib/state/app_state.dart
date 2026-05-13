@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart';
 
 import '../config/app_config.dart';
@@ -58,6 +60,24 @@ class AppState extends ChangeNotifier {
     Iterable<String>? baseAddresses,
   }) async {
     final extracted = await _apiService.scanAddressImage(imagePath);
+    final merged = AddressRules.mergeUnique(
+      baseAddresses ?? _addresses,
+      extracted,
+    );
+    _addresses = List.unmodifiable(merged);
+    notifyListeners();
+    return extracted;
+  }
+
+  Future<List<String>> scanImageBytes(
+    Uint8List bytes, {
+    required String filename,
+    Iterable<String>? baseAddresses,
+  }) async {
+    final extracted = await _apiService.scanAddressImageBytes(
+      bytes,
+      filename: filename,
+    );
     final merged = AddressRules.mergeUnique(
       baseAddresses ?? _addresses,
       extracted,

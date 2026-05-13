@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -17,12 +18,7 @@ class ApiService {
     return _safeCall(
       operationLabel: 'escanear imagem',
       action: () async {
-        final request = http.MultipartRequest(
-          'POST',
-          Uri.parse('${AppConfig.apiBaseUrl}/api/scan'),
-        );
-
-        request.files.add(
+        return _sendScanRequest(
           await http.MultipartFile.fromPath(
             'image',
             imagePath,
@@ -30,24 +26,25 @@ class ApiService {
             contentType: _inferMediaType(imagePath),
           ),
         );
+      },
+    );
+  }
 
-        final streamed =
-            await _client.send(request).timeout(AppConfig.scanTimeout);
-        final response = await http.Response.fromStream(streamed);
-        _throwIfFailed(response);
-
-        final decoded =
-            _decodeJsonObject(response.body, endpoint: '/api/scan');
-        final rawAddresses = decoded['addresses'];
-        if (rawAddresses is! List) {
-          throw const FormatException('Resposta inválida do /scan.');
-        }
-
-        return rawAddresses
-            .whereType<String>()
-            .map((address) => address.trim())
-            .where((address) => address.isNotEmpty)
-            .toList();
+  Future<List<String>> scanAddressImageBytes(
+    Uint8List bytes, {
+    required String filename,
+  }) {
+    return _safeCall(
+      operationLabel: 'escanear imagem',
+      action: () {
+        return _sendScanRequest(
+          http.MultipartFile.fromBytes(
+            'image',
+            bytes,
+            filename: filename.isEmpty ? 'capture.jpg' : filename,
+            contentType: _inferMediaType(filename),
+          ),
+        );
       },
     );
   }
@@ -58,7 +55,7 @@ class ApiService {
       action: () async {
         final response = await _client
             .post(
-              Uri.parse('${AppConfig.apiBaseUrl}/api/optimize'),
+              AppConfig.apiUri('/api/optimize'),
               headers: const {'Content-Type': 'application/json'},
               body: jsonEncode({'addresses': addresses}),
             )
@@ -82,6 +79,31 @@ class ApiService {
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
+
+  Future<List<String>> _sendScanRequest(http.MultipartFile file) async {
+    final request = http.MultipartRequest(
+      'POST',
+      AppConfig.apiUri('/api/scan'),
+    );
+
+    request.files.add(file);
+
+    final streamed = await _client.send(request).timeout(AppConfig.scanTimeout);
+    final response = await http.Response.fromStream(streamed);
+    _throwIfFailed(response);
+
+    final decoded = _decodeJsonObject(response.body, endpoint: '/api/scan');
+    final rawAddresses = decoded['addresses'];
+    if (rawAddresses is! List) {
+      throw const FormatException('Resposta inválida do /scan.');
+    }
+
+    return rawAddresses
+        .whereType<String>()
+        .map((address) => address.trim())
+        .where((address) => address.isNotEmpty)
+        .toList();
+  }
 
   Future<T> _safeCall<T>({
     required String operationLabel,

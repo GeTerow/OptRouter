@@ -4,6 +4,8 @@ class MapsLinkBuilder {
   const MapsLinkBuilder._();
 
   static String googleDirectionsUrl(OptimizedRoute route) {
+    if (route.mapsUrl.isNotEmpty) return route.mapsUrl;
+
     final stops = route.stops;
     if (stops.isEmpty) return 'https://www.google.com/maps';
 

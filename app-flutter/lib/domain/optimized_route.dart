@@ -6,12 +6,14 @@ class OptimizedRoute {
     required this.totalTime,
     required this.totalDistance,
     required this.numberOfStops,
+    this.mapsUrl = '',
   });
 
   final List<Stop> stops;
   final String totalTime;
   final String totalDistance;
   final int numberOfStops;
+  final String mapsUrl;
 
   factory OptimizedRoute.fromJson(Map<String, dynamic> json) {
     final rawStops = json['stops'];
@@ -28,6 +30,7 @@ class OptimizedRoute {
       totalTime: (json['totalTime'] as String?) ?? '',
       totalDistance: (json['totalDistance'] as String?) ?? '',
       numberOfStops: (json['numberOfStops'] as num?)?.toInt() ?? 0,
+      mapsUrl: (json['mapsUrl'] as String?)?.trim() ?? '',
     );
   }
 
@@ -41,7 +44,8 @@ class OptimizedRoute {
     }
     return totalTime == other.totalTime &&
         totalDistance == other.totalDistance &&
-        numberOfStops == other.numberOfStops;
+        numberOfStops == other.numberOfStops &&
+        mapsUrl == other.mapsUrl;
   }
 
   @override
@@ -50,5 +54,6 @@ class OptimizedRoute {
         totalTime,
         totalDistance,
         numberOfStops,
+        mapsUrl,
       );
 }
