@@ -1,3 +1,4 @@
+/// Uma parada individual na rota otimizada.
 class Stop {
   const Stop({required this.address});
 

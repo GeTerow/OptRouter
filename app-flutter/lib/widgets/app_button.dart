@@ -25,6 +25,67 @@ class AppButton extends StatelessWidget {
     final background = _isPrimary ? AppColors.primary : AppColors.secondaryButton;
     final foreground = _isPrimary ? Colors.white : AppColors.textSecondary;
 
+    Widget buttonChild = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 20),
+          const SizedBox(width: 8),
+        ],
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+
+    if (_isPrimary) {
+      final isDisabled = onPressed == null;
+      return Container(
+        width: double.infinity,
+        height: 54,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: isDisabled
+              ? null
+              : const LinearGradient(
+                  colors: [
+                    AppColors.primaryGradientStart,
+                    AppColors.primaryGradientEnd,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+          color: isDisabled ? AppColors.disabledButton : null,
+          boxShadow: isDisabled ? null : AppShadows.primaryGlow,
+        ),
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            disabledBackgroundColor: Colors.transparent,
+            foregroundColor: foreground,
+            disabledForegroundColor: AppColors.textMuted,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            textStyle: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+          child: buttonChild,
+        ),
+      );
+    }
+
     return SizedBox(
       width: double.infinity,
       height: 54,
@@ -37,30 +98,14 @@ class AppButton extends StatelessWidget {
           foregroundColor: foreground,
           disabledForegroundColor: AppColors.textMuted,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadii.button),
+            borderRadius: BorderRadius.circular(16),
           ),
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
           ),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 20),
-              const SizedBox(width: 8),
-            ],
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
+        child: buttonChild,
       ),
     );
   }

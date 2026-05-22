@@ -7,12 +7,14 @@ class AppLayout extends StatelessWidget {
     required this.title,
     required this.child,
     this.onBack,
+    this.trailing,
     this.footer,
     super.key,
   });
 
   final String title;
   final VoidCallback? onBack;
+  final Widget? trailing;
   final Widget child;
   final Widget? footer;
 
@@ -31,7 +33,11 @@ class AppLayout extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    _AppHeader(title: title, onBack: onBack),
+                    _AppHeader(
+                      title: title,
+                      onBack: onBack,
+                      trailing: trailing,
+                    ),
                     Expanded(child: child),
                   ],
                 ),
@@ -65,10 +71,11 @@ class AppLayout extends StatelessWidget {
 }
 
 class _AppHeader extends StatelessWidget {
-  const _AppHeader({required this.title, this.onBack});
+  const _AppHeader({required this.title, this.onBack, this.trailing});
 
   final String title;
   final VoidCallback? onBack;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +106,7 @@ class _AppHeader extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 40),
+          SizedBox(width: 40, child: trailing),
         ],
       ),
     );

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../app_routes.dart';
 import '../domain/address_rules.dart';
 import '../domain/app_failure.dart';
+import '../services/auth_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_alerts.dart';
@@ -105,6 +106,16 @@ class _AddressInputScreenState extends State<AddressInputScreen> {
     setState(() {});
   }
 
+  Future<void> _handleSignOut() async {
+    await AuthService().signOut();
+    if (!mounted) return;
+
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      AppRoutes.login,
+      (_) => false,
+    );
+  }
+
   Future<void> _handleScanFromCamera() async {
     try {
       final image = await _imagePicker.pickImage(
@@ -146,7 +157,8 @@ class _AddressInputScreenState extends State<AddressInputScreen> {
       await showAppAlert(
         context,
         title: 'Sucesso',
-        message: '${extracted.length} endereço(s) encontrados a partir da imagem.',
+        message:
+            '${extracted.length} endereço(s) encontrados a partir da imagem.',
       );
     } on AppFailure catch (error) {
       if (!mounted) return;
@@ -179,6 +191,12 @@ class _AddressInputScreenState extends State<AddressInputScreen> {
       children: [
         AppLayout(
           title: 'Novo Roteiro',
+          trailing: IconButton(
+            tooltip: 'Sair',
+            icon: const Icon(Icons.logout),
+            color: AppColors.textMuted,
+            onPressed: _handleSignOut,
+          ),
           footer: AppButton(
             label: 'Avançar',
             onPressed: _canProceed ? _handleNext : null,
@@ -271,7 +289,8 @@ class _AddressInputScreenState extends State<AddressInputScreen> {
             ),
           ),
         ),
-        if (_loading) const LoadingOverlay(text: 'Lendo endereços da imagem...'),
+        if (_loading)
+          const LoadingOverlay(text: 'Lendo endereços da imagem...'),
       ],
     );
   }

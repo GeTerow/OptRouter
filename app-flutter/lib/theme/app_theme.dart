@@ -4,7 +4,11 @@ class AppColors {
   const AppColors._();
 
   static const primary = Color(0xFF2563EB);
+  static const primaryGradientStart = Color(0xFF3B82F6);
+  static const primaryGradientEnd = Color(0xFF1D4ED8);
   static const background = Color(0xFFF3F4F6);
+  static const backgroundGradientStart = Color(0xFFF8FAFC);
+  static const backgroundGradientEnd = Color(0xFFE2E8F0);
   static const surface = Colors.white;
   static const textStrong = Color(0xFF111827);
   static const text = Color(0xFF1F2937);
@@ -39,9 +43,22 @@ class AppShadows {
 
   static const card = [
     BoxShadow(
-      color: Color(0x0D000000),
-      blurRadius: 6,
-      offset: Offset(0, 2),
+      color: Color(0x08000000),
+      blurRadius: 10,
+      offset: Offset(0, 4),
+    ),
+    BoxShadow(
+      color: Color(0x05000000),
+      blurRadius: 20,
+      offset: Offset(0, 10),
+    ),
+  ];
+
+  static const primaryGlow = [
+    BoxShadow(
+      color: Color(0x3D2563EB),
+      blurRadius: 16,
+      offset: Offset(0, 6),
     ),
   ];
 

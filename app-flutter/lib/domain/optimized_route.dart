@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'stop.dart';
+
 
 class OptimizedRoute {
   const OptimizedRoute({
@@ -13,6 +15,8 @@ class OptimizedRoute {
   final String totalTime;
   final String totalDistance;
   final int numberOfStops;
+
+  /// URL de direções do Google Maps (pode vir vazia; nesse caso é gerada localmente).
   final String mapsUrl;
 
   factory OptimizedRoute.fromJson(Map<String, dynamic> json) {
@@ -38,11 +42,9 @@ class OptimizedRoute {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     if (other is! OptimizedRoute) return false;
-    if (stops.length != other.stops.length) return false;
-    for (var i = 0; i < stops.length; i++) {
-      if (stops[i] != other.stops[i]) return false;
-    }
-    return totalTime == other.totalTime &&
+
+    return listEquals(stops, other.stops) &&
+        totalTime == other.totalTime &&
         totalDistance == other.totalDistance &&
         numberOfStops == other.numberOfStops &&
         mapsUrl == other.mapsUrl;

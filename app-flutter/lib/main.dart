@@ -1,19 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 
 import 'app_routes.dart';
+import 'firebase_options.dart';
 import 'screens/address_input_screen.dart';
+import 'screens/auth_gate.dart';
+import 'screens/auth_screen.dart';
 import 'screens/confirm_screen.dart';
 import 'screens/result_screen.dart';
 import 'state/app_state.dart';
 import 'theme/app_theme.dart';
 
 void main() {
-  runApp(const RotaOtimizadaApp());
+  WidgetsFlutterBinding.ensureInitialized();
+
+  runApp(
+    RotaOtimizadaApp(
+      firebaseInitialization: _initializeFirebase(),
+    ),
+  );
+}
+
+Future<FirebaseApp> _initializeFirebase() async {
+  return Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 }
 
 class RotaOtimizadaApp extends StatelessWidget {
-  const RotaOtimizadaApp({super.key});
+  const RotaOtimizadaApp({
+    required this.firebaseInitialization,
+    super.key,
+  });
+
+  final Future<FirebaseApp> firebaseInitialization;
 
   @override
   Widget build(BuildContext context) {
@@ -23,12 +44,71 @@ class RotaOtimizadaApp extends StatelessWidget {
         title: 'Rota Otimizada',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
-        initialRoute: AppRoutes.addressInput,
+        home: FirebaseBootstrap(initialization: firebaseInitialization),
         routes: {
+          AppRoutes.login: (_) => const AuthScreen(),
           AppRoutes.addressInput: (_) => const AddressInputScreen(),
           AppRoutes.confirm: (_) => const ConfirmScreen(),
           AppRoutes.result: (_) => const ResultScreen(),
         },
+      ),
+    );
+  }
+}
+
+class FirebaseBootstrap extends StatelessWidget {
+  const FirebaseBootstrap({
+    required this.initialization,
+    super.key,
+  });
+
+  final Future<FirebaseApp> initialization;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: initialization,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            backgroundColor: AppColors.background,
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return const _FirebaseSetupErrorScreen();
+        }
+
+        return const AuthGate();
+      },
+    );
+  }
+}
+
+class _FirebaseSetupErrorScreen extends StatelessWidget {
+  const _FirebaseSetupErrorScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(
+            child: Text(
+              'Firebase ainda não configurado. Rode o FlutterFire CLI e conecte '
+              'o app ao seu projeto Firebase antes de iniciar.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.text,
+                fontSize: 16,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

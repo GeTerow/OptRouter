@@ -1,3 +1,4 @@
+
 enum AppFailureKind {
   validation,
   network,
@@ -8,6 +9,7 @@ enum AppFailureKind {
   unknown,
 }
 
+/// Erro tipado que substitui exceções genéricas.
 class AppFailure implements Exception {
   const AppFailure({
     required this.kind,
@@ -39,6 +41,7 @@ class AppFailure implements Exception {
     };
   }
 
+  // Dois erros são iguais se todos os quatro campos coincidirem. Só serve para os testes aqui.
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
