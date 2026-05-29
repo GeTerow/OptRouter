@@ -1,6 +1,7 @@
 
 enum AppFailureKind {
   validation,
+  configuration,
   network,
   timeout,
   invalidResponse,
@@ -26,16 +27,18 @@ class AppFailure implements Exception {
   String get userMessage {
     return switch (kind) {
       AppFailureKind.validation => message,
+      AppFailureKind.configuration =>
+        'A configuração da demonstração está incompleta. Verifique as chaves da API e tente novamente.',
       AppFailureKind.addressNotFound =>
         'Impossível otimizar. Um ou mais endereços não foram encontrados, verifique e tente novamente.',
       AppFailureKind.network =>
-        'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.',
+        'Não foi possível conectar aos serviços necessários. Verifique sua conexão e tente novamente.',
       AppFailureKind.timeout =>
-        'A conexão com o servidor demorou demais. Tente novamente.',
+        'Os serviços necessários demoraram demais para responder. Tente novamente.',
       AppFailureKind.invalidResponse =>
-        'O servidor retornou uma resposta inválida. Tente novamente.',
+        'Um serviço externo retornou uma resposta inválida. Tente novamente.',
       AppFailureKind.server =>
-        'O servidor não conseguiu processar a solicitação. Tente novamente.',
+        'Um serviço externo não conseguiu processar a solicitação. Tente novamente.',
       AppFailureKind.unknown =>
         'Não foi possível concluir a operação. Tente novamente.',
     };

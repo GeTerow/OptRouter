@@ -11,6 +11,14 @@ void main() {
       expect(failure.userMessage, 'Custom validation message');
     });
 
+    test('userMessage returns fixed message for configuration kind', () {
+      const failure = AppFailure(
+        kind: AppFailureKind.configuration,
+        message: 'ignored',
+      );
+      expect(failure.userMessage, contains('configuração'));
+    });
+
     test('userMessage returns fixed message for addressNotFound kind', () {
       const failure = AppFailure(
         kind: AppFailureKind.addressNotFound,
@@ -27,7 +35,7 @@ void main() {
         kind: AppFailureKind.network,
         message: 'ignored',
       );
-      expect(failure.userMessage, contains('conexão'));
+      expect(failure.userMessage, contains('serviços necessários'));
     });
 
     test('userMessage returns fixed message for timeout kind', () {
@@ -35,7 +43,7 @@ void main() {
         kind: AppFailureKind.timeout,
         message: 'ignored',
       );
-      expect(failure.userMessage, contains('demorou'));
+      expect(failure.userMessage, contains('demoraram'));
     });
 
     test('userMessage returns fixed message for invalidResponse kind', () {
@@ -43,7 +51,7 @@ void main() {
         kind: AppFailureKind.invalidResponse,
         message: 'ignored',
       );
-      expect(failure.userMessage, contains('resposta inválida'));
+      expect(failure.userMessage, contains('serviço externo'));
     });
 
     test('userMessage returns fixed message for server kind', () {
@@ -51,7 +59,7 @@ void main() {
         kind: AppFailureKind.server,
         message: 'ignored',
       );
-      expect(failure.userMessage, contains('processar'));
+      expect(failure.userMessage, contains('serviço externo'));
     });
 
     test('userMessage returns fixed message for unknown kind', () {

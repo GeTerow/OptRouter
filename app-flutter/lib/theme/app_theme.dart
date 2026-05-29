@@ -17,6 +17,7 @@ class AppColors {
   static const textSubtle = Color(0xFF9CA3AF);
   static const border = Color(0xFFE5E7EB);
   static const secondaryButton = Color(0xFFE5E7EB);
+  static const destination = Color(0xFF059669);
   static const disabledButton = Color(0xFFD1D5DB);
   static const overlay = Color(0xFF111827);
   static const overlayText = Color(0xFFF9FAFB);

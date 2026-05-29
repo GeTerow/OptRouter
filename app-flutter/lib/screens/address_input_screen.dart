@@ -255,6 +255,41 @@ class _AddressInputScreenState extends State<AddressInputScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(0xFFBBF7D0),
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 18,
+                              color: Color(0xFF059669),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'O último endereço da lista será o ponto de chegada (destino final).',
+                                style: TextStyle(
+                                  color: Color(0xFF065F46),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       AppButton(
                         label: 'Escanear com a câmera',

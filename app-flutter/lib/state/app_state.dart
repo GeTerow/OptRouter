@@ -44,12 +44,7 @@ class AppState extends ChangeNotifier {
       return;
     }
 
-    try {
-      _optimizedRoute = await _apiService.optimizeRoute(normalized);
-    } on AppFailure catch (error) {
-      if (!_canUsePreviewRoute(error)) rethrow;
-      _optimizedRoute = _buildPreviewRoute(normalized);
-    }
+    _optimizedRoute = await _apiService.optimizeRoute(normalized);
     notifyListeners();
   }
 
@@ -89,20 +84,6 @@ class AppState extends ChangeNotifier {
   void dispose() {
     _apiService.dispose();
     super.dispose();
-  }
-
-  bool _canUsePreviewRoute(AppFailure error) {
-    return switch (error.kind) {
-      AppFailureKind.network ||
-      AppFailureKind.timeout ||
-      AppFailureKind.unknown =>
-        true,
-      AppFailureKind.validation ||
-      AppFailureKind.invalidResponse ||
-      AppFailureKind.server ||
-      AppFailureKind.addressNotFound =>
-        false,
-    };
   }
 
   OptimizedRoute _buildPreviewRoute(List<String> addresses) {

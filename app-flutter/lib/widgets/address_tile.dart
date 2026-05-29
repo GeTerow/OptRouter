@@ -6,13 +6,37 @@ class AddressTile extends StatelessWidget {
   const AddressTile({
     required this.address,
     required this.isStart,
+    this.isEnd = false,
     this.onDelete,
+    this.onSetDestination,
     super.key,
   });
 
   final String address;
   final bool isStart;
+  final bool isEnd;
   final VoidCallback? onDelete;
+
+  /// Shown on intermediate addresses — makes this address the destination.
+  final VoidCallback? onSetDestination;
+
+  Color get _accentColor {
+    if (isStart) return AppColors.primary;
+    if (isEnd) return AppColors.destination;
+    return AppColors.textSubtle;
+  }
+
+  IconData get _icon {
+    if (isStart) return Icons.flag;
+    if (isEnd) return Icons.location_on;
+    return Icons.menu;
+  }
+
+  String? get _label {
+    if (isStart) return 'Ponto de Partida';
+    if (isEnd) return 'Ponto de Chegada';
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,11 +51,11 @@ class AddressTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (isStart)
-              const SizedBox(
+            if (isStart || isEnd)
+              SizedBox(
                 width: 5,
                 child: DecoratedBox(
-                  decoration: BoxDecoration(color: AppColors.primary),
+                  decoration: BoxDecoration(color: _accentColor),
                 ),
               ),
             Expanded(
@@ -40,9 +64,9 @@ class AddressTile extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(
-                      isStart ? Icons.flag : Icons.menu,
+                      _icon,
                       size: 22,
-                      color: isStart ? AppColors.primary : AppColors.textSubtle,
+                      color: _accentColor,
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -57,13 +81,13 @@ class AddressTile extends StatelessWidget {
                               height: 1.35,
                             ),
                           ),
-                          if (isStart)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 2),
+                          if (_label != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
                               child: Text(
-                                'Ponto de Partida',
+                                _label!,
                                 style: TextStyle(
-                                  color: AppColors.primary,
+                                  color: _accentColor,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -72,6 +96,15 @@ class AddressTile extends StatelessWidget {
                         ],
                       ),
                     ),
+                    if (onSetDestination != null)
+                      IconButton(
+                        tooltip: 'Definir como ponto de chegada',
+                        onPressed: onSetDestination,
+                        icon: const Icon(
+                          Icons.location_on_outlined,
+                          color: AppColors.destination,
+                        ),
+                      ),
                     if (onDelete != null)
                       IconButton(
                         tooltip: 'Remover endereço',

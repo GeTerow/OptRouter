@@ -11,7 +11,6 @@ import '../widgets/app_alerts.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_layout.dart';
 import '../widgets/route_stop_tile.dart';
-import '../widgets/route_summary_card.dart';
 
 class ResultScreen extends StatefulWidget {
   const ResultScreen({super.key});
@@ -25,16 +24,25 @@ class _ResultScreenState extends State<ResultScreen> {
 
   Future<void> _openMaps(String mapsUrl) async {
     final uri = Uri.parse(mapsUrl);
-    if (!await canLaunchUrl(uri)) {
+    try {
+      final launched =
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        if (!mounted) return;
+        await showAppAlert(
+          context,
+          title: 'Erro',
+          message: 'Não foi possível abrir o Google Maps.',
+        );
+      }
+    } catch (_) {
       if (!mounted) return;
       await showAppAlert(
         context,
         title: 'Erro',
         message: 'Não foi possível abrir o Google Maps.',
       );
-      return;
     }
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   Future<void> _copyLink(String mapsUrl) async {
@@ -95,8 +103,6 @@ class _ResultScreenState extends State<ResultScreen> {
       child: ListView(
         padding: const EdgeInsets.only(bottom: 140),
         children: [
-          RouteSummaryCard(route: route),
-          const SizedBox(height: 16),
           const Text(
             'Endereços',
             style: TextStyle(

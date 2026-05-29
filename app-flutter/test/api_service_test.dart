@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -6,121 +7,396 @@ import 'package:http/testing.dart';
 import 'package:rotaotimizada/domain/app_failure.dart';
 import 'package:rotaotimizada/services/api_service.dart';
 
+ApiService _createService(
+  MockClient client, {
+  String googleMapsApiKey = 'google-key',
+  String openAiApiKey = 'openai-key',
+  String openAiRouteModel = 'gpt-4o-mini',
+  String openAiScanModel = 'gpt-4o',
+}) {
+  return ApiService(
+    client: client,
+    googleMapsApiKey: googleMapsApiKey,
+    openAiApiKey: openAiApiKey,
+    openAiRouteModel: openAiRouteModel,
+    openAiScanModel: openAiScanModel,
+  );
+}
+
+http.Response _openAiStructuredResponse(Map<String, dynamic> payload) {
+  return http.Response(
+    jsonEncode({
+      'output': [
+        {
+          'type': 'message',
+          'content': [
+            {
+              'type': 'output_text',
+              'text': jsonEncode(payload),
+            },
+          ],
+        },
+      ],
+    }),
+    200,
+  );
+}
+
 void main() {
-  group('ApiService.optimizeRoute', () {
-    test('returns OptimizedRoute on valid 200 response', () async {
+  group('ApiService.scanAddressImageBytes', () {
+    test('returns extracted addresses from OpenAI structured output', () async {
       final client = MockClient((request) async {
-        expect(request.url.path, '/api/optimize');
-        return http.Response(
-          jsonEncode({
-            'stops': [
-              {'address': 'Rua A'},
-              {'address': 'Rua B'},
-            ],
-            'totalTime': '15 min',
-            'totalDistance': '5 km',
-            'numberOfStops': 2,
-          }),
-          200,
-        );
+        expect(request.url.host, 'api.openai.com');
+        expect(request.url.path, '/v1/responses');
+        expect(request.method, 'POST');
+
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['model'], 'scan-model');
+
+        final input = body['input'] as List<dynamic>;
+        final content =
+            (input.first as Map<String, dynamic>)['content'] as List<dynamic>;
+        final imagePart = content[1] as Map<String, dynamic>;
+        expect(imagePart['type'], 'input_image');
+        expect(
+            (imagePart['image_url'] as String)
+                .startsWith('data:image/png;base64,'),
+            isTrue);
+
+        return _openAiStructuredResponse({
+          'addresses': [' Rua A ', 'Rua B', ''],
+        });
       });
 
-      final service = ApiService(client: client);
-      final route = await service.optimizeRoute(['Rua A', 'Rua B']);
-
-      expect(route.stops.length, 2);
-      expect(route.stops[0].address, 'Rua A');
-      expect(route.totalTime, '15 min');
-      expect(route.totalDistance, '5 km');
-      expect(route.numberOfStops, 2);
-    });
-
-    test('throws AppFailure with server kind on HTTP 500', () async {
-      final client = MockClient((request) async {
-        return http.Response(
-          jsonEncode({'message': 'Internal error'}),
-          500,
-        );
-      });
-
-      final service = ApiService(client: client);
-
-      expect(
-        () => service.optimizeRoute(['Rua A', 'Rua B']),
-        throwsA(
-          isA<AppFailure>()
-              .having((f) => f.kind, 'kind', AppFailureKind.server),
-        ),
+      final service = _createService(
+        client,
+        googleMapsApiKey: '',
+        openAiScanModel: 'scan-model',
       );
+
+      final addresses = await service.scanAddressImageBytes(
+        Uint8List.fromList([1, 2, 3]),
+        filename: 'capture.png',
+      );
+
+      expect(addresses, ['Rua A', 'Rua B']);
     });
 
-    test('throws AppFailure with addressNotFound on known error message',
+    test('throws invalidResponse when OpenAI structured output is invalid',
         () async {
       final client = MockClient((request) async {
-        return http.Response(
-          jsonEncode({
-            'message':
-                'Nenhum resultado retornado pela API do Google Maps para ...',
-          }),
-          400,
-        );
+        return _openAiStructuredResponse({
+          'unexpected': true,
+        });
       });
 
-      final service = ApiService(client: client);
-
-      expect(
-        () => service.optimizeRoute(['Rua Inexistente']),
-        throwsA(
-          isA<AppFailure>()
-              .having((f) => f.kind, 'kind', AppFailureKind.addressNotFound),
-        ),
+      final service = _createService(
+        client,
+        googleMapsApiKey: '',
       );
-    });
-
-    test('throws AppFailure with invalidResponse on malformed JSON', () async {
-      final client = MockClient((request) async {
-        return http.Response('not json at all', 200);
-      });
-
-      final service = ApiService(client: client);
 
       expect(
-        () => service.optimizeRoute(['Rua A', 'Rua B']),
+        () => service.scanAddressImageBytes(
+          Uint8List.fromList([1, 2, 3]),
+          filename: 'capture.jpg',
+        ),
         throwsA(
           isA<AppFailure>()
               .having((f) => f.kind, 'kind', AppFailureKind.invalidResponse),
         ),
       );
     });
+  });
 
-    test('throws AppFailure with network kind on ClientException', () async {
+  group('ApiService.optimizeRoute', () {
+    test('returns Google-optimized route on valid response', () async {
       final client = MockClient((request) async {
-        throw http.ClientException('Connection refused');
+        expect(request.url.host, 'maps.googleapis.com');
+        expect(request.url.path, '/maps/api/directions/json');
+        expect(request.url.queryParameters['origin'], 'Origem');
+        expect(request.url.queryParameters['destination'], 'Origem');
+        expect(
+          request.url.queryParameters['waypoints'],
+          'optimize:true|Destino A|Destino B',
+        );
+
+        return http.Response(
+          jsonEncode({
+            'status': 'OK',
+            'routes': [
+              {
+                'waypoint_order': [1, 0],
+                'legs': [
+                  {
+                    'duration': {'value': 600},
+                    'distance': {'value': 2000},
+                  },
+                  {
+                    'duration': {'value': 900},
+                    'distance': {'value': 3000},
+                  },
+                  {
+                    'duration': {'value': 300},
+                    'distance': {'value': 2000},
+                  },
+                ],
+              },
+            ],
+          }),
+          200,
+        );
       });
 
-      final service = ApiService(client: client);
+      final service = _createService(client);
+      final route = await service.optimizeRoute([
+        'Origem',
+        'Destino A',
+        'Destino B',
+      ]);
 
       expect(
-        () => service.optimizeRoute(['Rua A', 'Rua B']),
-        throwsA(
-          isA<AppFailure>()
-              .having((f) => f.kind, 'kind', AppFailureKind.network),
-        ),
+        route.stops.map((stop) => stop.address).toList(),
+        ['Origem', 'Destino B', 'Destino A', 'Origem'],
+      );
+      expect(route.totalTime, '30min');
+      expect(route.totalDistance, '7.0 km');
+      expect(route.numberOfStops, 4);
+      expect(route.mapsUrl, isNotEmpty);
+    });
+
+    test('falls back to OpenAI when Google request fails', () async {
+      final client = MockClient((request) async {
+        if (request.url.host == 'maps.googleapis.com') {
+          return http.Response('gateway error', 502);
+        }
+
+        expect(request.url.host, 'api.openai.com');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['model'], 'fallback-model');
+        final text = body['text'] as Map<String, dynamic>;
+        final format = text['format'] as Map<String, dynamic>;
+        final schema = format['schema'] as Map<String, dynamic>;
+        final properties = schema['properties'] as Map<String, dynamic>;
+        final stops = properties['stops'] as Map<String, dynamic>;
+        final items = stops['items'] as Map<String, dynamic>;
+        final stopProperties = items['properties'] as Map<String, dynamic>;
+        expect(stopProperties.keys, contains('originalIndex'));
+
+        return _openAiStructuredResponse({
+          'totalTime': 'Estimado 35 min',
+          'totalDistance': 'Estimado 8 km',
+          'stops': [
+            {'originalIndex': 1},
+            {'originalIndex': 3},
+            {'originalIndex': 2},
+            {'originalIndex': 1},
+          ],
+        });
+      });
+
+      final service = _createService(
+        client,
+        openAiRouteModel: 'fallback-model',
+      );
+
+      final route = await service.optimizeRoute([
+        'Origem',
+        'Destino A',
+        'Destino B',
+      ]);
+
+      expect(
+        route.stops.map((stop) => stop.address).toList(),
+        ['Origem', 'Destino B', 'Destino A', 'Origem'],
+      );
+      expect(route.totalTime, 'Estimado 35 min');
+      expect(route.totalDistance, 'Estimado 8 km');
+    });
+
+    test('preserves original address text when OpenAI returns indexes',
+        () async {
+      final client = MockClient((request) async {
+        if (request.url.host == 'maps.googleapis.com') {
+          return http.Response('gateway error', 502);
+        }
+
+        return _openAiStructuredResponse({
+          'totalTime': 'Estimado 40 min',
+          'totalDistance': 'Estimado 12 km',
+          'stops': [
+            {'originalIndex': 1},
+            {'originalIndex': 3},
+            {'originalIndex': 2},
+            {'originalIndex': 1},
+          ],
+        });
+      });
+
+      final service = _createService(client);
+      final route = await service.optimizeRoute([
+        'Rua São João, 10 - Centro',
+        'Av. Brasil, 200',
+        'Praça XV, 5',
+      ]);
+
+      expect(
+        route.stops.map((stop) => stop.address).toList(),
+        [
+          'Rua São João, 10 - Centro',
+          'Praça XV, 5',
+          'Av. Brasil, 200',
+          'Rua São João, 10 - Centro',
+        ],
       );
     });
 
-    test('includes statusCode in AppFailure on HTTP error', () async {
+    test('repairs OpenAI index route when it omits stops or returns extras',
+        () async {
       final client = MockClient((request) async {
-        return http.Response('', 502);
+        if (request.url.host == 'maps.googleapis.com') {
+          return http.Response('gateway error', 502);
+        }
+
+        return _openAiStructuredResponse({
+          'totalTime': 'Estimado 40 min',
+          'totalDistance': 'Estimado 12 km',
+          'stops': [
+            {'originalIndex': 1},
+            {'originalIndex': 3},
+            {'originalIndex': 99},
+            {'originalIndex': 3},
+            {'originalIndex': 1},
+          ],
+        });
       });
 
-      final service = ApiService(client: client);
+      final service = _createService(client);
+      final route = await service.optimizeRoute([
+        'Origem',
+        'Destino A',
+        'Destino B',
+        'Destino C',
+      ]);
+
+      expect(
+        route.stops.map((stop) => stop.address).toList(),
+        ['Origem', 'Destino B', 'Destino A', 'Destino C', 'Origem'],
+      );
+    });
+
+    test('accepts legacy OpenAI addresses with harmless text differences',
+        () async {
+      final client = MockClient((request) async {
+        if (request.url.host == 'maps.googleapis.com') {
+          return http.Response('gateway error', 502);
+        }
+
+        return _openAiStructuredResponse({
+          'totalTime': 'Estimado 40 min',
+          'totalDistance': 'Estimado 12 km',
+          'stops': [
+            {'address': 'rua sao joao 10 centro'},
+            {'address': 'praca xv 5'},
+            {'address': 'av brasil 200'},
+            {'address': 'RUA SAO JOAO, 10 - CENTRO'},
+          ],
+        });
+      });
+
+      final service = _createService(client);
+      final route = await service.optimizeRoute([
+        'Rua São João, 10 - Centro',
+        'Av. Brasil, 200',
+        'Praça XV, 5',
+      ]);
+
+      expect(
+        route.stops.map((stop) => stop.address).toList(),
+        [
+          'Rua São João, 10 - Centro',
+          'Praça XV, 5',
+          'Av. Brasil, 200',
+          'Rua São João, 10 - Centro',
+        ],
+      );
+    });
+
+    test('adds return to origin when OpenAI omits final origin stop', () async {
+      final client = MockClient((request) async {
+        if (request.url.host == 'maps.googleapis.com') {
+          return http.Response('gateway error', 502);
+        }
+
+        return _openAiStructuredResponse({
+          'totalTime': 'Estimado 35 min',
+          'totalDistance': 'Estimado 8 km',
+          'stops': [
+            {'address': 'Origem'},
+            {'address': 'Destino B'},
+            {'address': 'Destino A'},
+          ],
+        });
+      });
+
+      final service = _createService(client);
+      final route = await service.optimizeRoute([
+        'Origem',
+        'Destino A',
+        'Destino B',
+      ]);
+
+      expect(
+        route.stops.map((stop) => stop.address).toList(),
+        ['Origem', 'Destino B', 'Destino A', 'Origem'],
+      );
+    });
+
+    test('throws configuration when both API keys are missing', () async {
+      final service = _createService(
+        MockClient((_) async => http.Response('', 500)),
+        googleMapsApiKey: '',
+        openAiApiKey: '',
+      );
 
       expect(
         () => service.optimizeRoute(['A', 'B']),
         throwsA(
           isA<AppFailure>()
-              .having((f) => f.statusCode, 'statusCode', 502),
+              .having((f) => f.kind, 'kind', AppFailureKind.configuration),
+        ),
+      );
+    });
+
+    test(
+        'throws addressNotFound when Google finds no route and fallback is invalid',
+        () async {
+      final client = MockClient((request) async {
+        if (request.url.host == 'maps.googleapis.com') {
+          return http.Response(
+            jsonEncode({
+              'status': 'ZERO_RESULTS',
+            }),
+            200,
+          );
+        }
+
+        return _openAiStructuredResponse({
+          'totalTime': 'Estimado 10 min',
+          'totalDistance': 'Estimado 3 km',
+          'stops': [
+            {'address': 'Origem'},
+            {'address': 'Destino A'},
+          ],
+        });
+      });
+
+      final service = _createService(client);
+
+      expect(
+        () => service.optimizeRoute(['Origem', 'Destino A']),
+        throwsA(
+          isA<AppFailure>()
+              .having((f) => f.kind, 'kind', AppFailureKind.addressNotFound),
         ),
       );
     });
