@@ -3,7 +3,9 @@ import multer from 'multer';
 import { ScanController } from './controllers/ScanController.js';
 import { OptimizeController } from './controllers/OptimizeController.js';
 import { PythonOptimizerService } from '../services/PythonOptimizerService.js';
+import { FallbackOptimizationService } from '../services/FallbackOptimizationService.js';
 import { OpenAIScanService } from '../services/OpenAiScanService.js';
+import { OpenAIRouteOptimizerService } from '../services/OpenAIRouteOptimizerService.js';
 import { OptimizeRouteUseCase } from '../../application/usecases/OptimizeRouteUseCase.js';
 import { ScanImageUseCase } from '../../application/usecases/ScanImageUseCase.js';
 
@@ -16,7 +18,9 @@ const upload = multer({
 });
 
 const pythonOptimizerService = new PythonOptimizerService();
-const optimizeRouteUseCase = new OptimizeRouteUseCase(pythonOptimizerService);
+const openAIRouteOptimizerService = new OpenAIRouteOptimizerService();
+const optimizerService = new FallbackOptimizationService(pythonOptimizerService, openAIRouteOptimizerService);
+const optimizeRouteUseCase = new OptimizeRouteUseCase(optimizerService);
 const optimizeController = new OptimizeController(optimizeRouteUseCase);
 
 const openAIScanService = new OpenAIScanService();

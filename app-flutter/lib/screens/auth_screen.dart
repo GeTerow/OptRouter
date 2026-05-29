@@ -6,7 +6,6 @@ import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_alerts.dart';
 import '../widgets/app_button.dart';
-import '../widgets/app_card.dart';
 import '../widgets/app_form_field.dart';
 import '../widgets/loading_overlay.dart';
 
@@ -122,10 +121,15 @@ class _AuthScreenState extends State<AuthScreen> {
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
+      backgroundColor: AppColors.backgroundGradientEnd,
       body: Stack(
         children: [
-          // Premium modern gradient background with abstract custom route lines
-          Positioned.fill(
+          // Background Painter (covering the top region)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: size.height * 0.45,
             child: Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
@@ -144,26 +148,23 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
           SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: size.width > 500 ? 420 : double.infinity,
-                  ),
-                  child: AppCard(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                    radius: 20, // slightly more rounded for premium card feel
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Glow circle logo
-                        Center(
-                          child: Container(
-                            width: 72,
-                            height: 72,
+            bottom: false,
+            child: Column(
+              children: [
+                // Top Branding Area
+                Expanded(
+                  flex: 3,
+                  child: Center(
+                    child: SingleChildScrollView(
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(height: 16),
+                          // Glow circle logo
+                          Container(
+                            width: 80,
+                            height: 80,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               gradient: const LinearGradient(
@@ -177,201 +178,256 @@ class _AuthScreenState extends State<AuthScreen> {
                               boxShadow: [
                                 BoxShadow(
                                   color: AppColors.primary.withValues(alpha: 0.3),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 6),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
                                 ),
                               ],
                             ),
                             child: const Icon(
                               Icons.alt_route_rounded,
                               color: Colors.white,
-                              size: 36,
+                              size: 40,
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        // Unified title
-                        const Text(
-                          'Rota Otimizada',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppColors.textStrong,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _isRegister
-                              ? 'Crie sua conta para começar a otimizar.'
-                              : 'Organize seus endereços e encontre a melhor rota.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 14,
-                            height: 1.45,
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        // Form fields with premium prefix icons
-                        if (_isRegister) ...[
-                          TextField(
-                            controller: _nameController,
-                            autofillHints: const [AutofillHints.name],
-                            textCapitalization: TextCapitalization.words,
-                            textInputAction: TextInputAction.next,
-                            decoration: appInputDecoration(
-                              'Nome completo',
-                              prefixIcon: const Icon(
-                                Icons.person_outline_rounded,
-                                color: AppColors.textMuted,
-                                size: 22,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                        ],
-                        TextField(
-                          controller: _emailController,
-                          autofillHints: const [AutofillHints.email],
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          decoration: appInputDecoration(
-                            'E-mail',
-                            prefixIcon: const Icon(
-                              Icons.mail_outline_rounded,
-                              color: AppColors.textMuted,
-                              size: 22,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        TextField(
-                          controller: _passwordController,
-                          autofillHints: [
-                            _isRegister
-                                ? AutofillHints.newPassword
-                                : AutofillHints.password,
-                          ],
-                          obscureText: _obscurePassword,
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) => _submit(),
-                          decoration: appInputDecoration(
-                            'Senha',
-                            prefixIcon: const Icon(
-                              Icons.lock_outline_rounded,
-                              color: AppColors.textMuted,
-                              size: 22,
-                            ),
-                          ).copyWith(
-                            suffixIcon: IconButton(
-                              tooltip: _obscurePassword
-                                  ? 'Mostrar senha'
-                                  : 'Ocultar senha',
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                                size: 22,
-                              ),
-                              color: AppColors.textMuted,
-                              onPressed: () {
-                                setState(
-                                  () => _obscurePassword = !_obscurePassword,
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        // Primary Action Button (now automatically uses premium gradient/glow)
-                        AppButton(
-                          label: _isRegister ? 'Criar minha conta' : 'Entrar na conta',
-                          icon: _isRegister ? Icons.person_add_alt_rounded : Icons.login_rounded,
-                          onPressed: _loading ? null : _submit,
-                        ),
-                        const SizedBox(height: 24),
-                        // Divider
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Divider(
-                                color: AppColors.border.withValues(alpha: 0.5),
-                                thickness: 1,
-                              ),
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 16),
-                              child: Text(
-                                'OU',
-                                style: TextStyle(
-                                  color: AppColors.textSubtle,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Divider(
-                                color: AppColors.border.withValues(alpha: 0.5),
-                                thickness: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        // Editorial switch link
-                        TextButton(
-                          onPressed: _loading
-                              ? null
-                              : () {
-                                  _setMode(
-                                    _isRegister
-                                        ? AuthMode.login
-                                        : AuthMode.register,
-                                  );
-                                },
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.primary,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: RichText(
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Rota Otimizada',
                             textAlign: TextAlign.center,
-                            text: TextSpan(
-                              style: const TextStyle(
+                            style: TextStyle(
+                              color: AppColors.textStrong,
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.8,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 32),
+                            child: Text(
+                              'Organize seus endereços e encontre a melhor rota.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
                                 fontSize: 14,
-                                fontFamily: 'Roboto',
+                                height: 1.4,
                               ),
-                              children: [
-                                TextSpan(
-                                  text: _isRegister
-                                      ? 'Já possui uma conta? '
-                                      : 'Ainda não tem cadastro? ',
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // Bottom area: Curved form container (Sliding sheet style)
+                Expanded(
+                  flex: 5,
+                  child: Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(32),
+                        topRight: Radius.circular(32),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0x0F000000),
+                          blurRadius: 24,
+                          offset: Offset(0, -8),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(32),
+                        topRight: Radius.circular(32),
+                      ),
+                      child: SingleChildScrollView(
+                        physics: const ClampingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(28, 36, 28, 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              _isRegister ? 'Criar conta' : 'Fazer login',
+                              style: const TextStyle(
+                                color: AppColors.textStrong,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _isRegister
+                                  ? 'Preencha os dados abaixo para começar.'
+                                  : 'Bem-vindo de volta! Por favor, insira seus dados.',
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            if (_isRegister) ...[
+                              TextField(
+                                controller: _nameController,
+                                autofillHints: const [AutofillHints.name],
+                                textCapitalization: TextCapitalization.words,
+                                textInputAction: TextInputAction.next,
+                                decoration: appInputDecoration(
+                                  'Nome completo',
+                                  prefixIcon: const Icon(
+                                    Icons.person_outline_rounded,
+                                    color: AppColors.textMuted,
+                                    size: 22,
                                   ),
                                 ),
-                                const TextSpan(
-                                  text: 'Clique aqui',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primary,
+                              ),
+                              const SizedBox(height: 14),
+                            ],
+                            TextField(
+                              controller: _emailController,
+                              autofillHints: const [AutofillHints.email],
+                              keyboardType: TextInputType.emailAddress,
+                              textInputAction: TextInputAction.next,
+                              decoration: appInputDecoration(
+                                  'E-mail',
+                                  prefixIcon: const Icon(
+                                    Icons.mail_outline_rounded,
+                                    color: AppColors.textMuted,
+                                    size: 22,
+                                  ),
+                                ),
+                            ),
+                            const SizedBox(height: 14),
+                            TextField(
+                              controller: _passwordController,
+                              autofillHints: [
+                                _isRegister
+                                    ? AutofillHints.newPassword
+                                    : AutofillHints.password,
+                              ],
+                              obscureText: _obscurePassword,
+                              textInputAction: TextInputAction.done,
+                              onSubmitted: (_) => _submit(),
+                              decoration: appInputDecoration(
+                                'Senha',
+                                prefixIcon: const Icon(
+                                  Icons.lock_outline_rounded,
+                                  color: AppColors.textMuted,
+                                  size: 22,
+                                ),
+                              ).copyWith(
+                                suffixIcon: IconButton(
+                                  tooltip: _obscurePassword
+                                      ? 'Mostrar senha'
+                                      : 'Ocultar senha',
+                                  icon: Icon(
+                                    _obscurePassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    size: 22,
+                                  ),
+                                  color: AppColors.textMuted,
+                                  onPressed: () {
+                                    setState(
+                                      () => _obscurePassword = !_obscurePassword,
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            // Primary Action Button (now automatically uses premium gradient/glow)
+                            AppButton(
+                              label: _isRegister ? 'Criar minha conta' : 'Entrar na conta',
+                              icon: _isRegister ? Icons.person_add_alt_rounded : Icons.login_rounded,
+                              onPressed: _loading ? null : _submit,
+                            ),
+                            const SizedBox(height: 24),
+                            // Divider
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Divider(
+                                    color: AppColors.border.withValues(alpha: 0.5),
+                                    thickness: 1,
+                                  ),
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text(
+                                    'OU',
+                                    style: TextStyle(
+                                      color: AppColors.textSubtle,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Divider(
+                                    color: AppColors.border.withValues(alpha: 0.5),
+                                    thickness: 1,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
+                            const SizedBox(height: 16),
+                            // Editorial switch link
+                            TextButton(
+                              onPressed: _loading
+                                  ? null
+                                  : () {
+                                      _setMode(
+                                        _isRegister
+                                            ? AuthMode.login
+                                            : AuthMode.register,
+                                      );
+                                    },
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              child: RichText(
+                                textAlign: TextAlign.center,
+                                text: TextSpan(
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontFamily: 'Roboto',
+                                  ),
+                                  children: [
+                                    TextSpan(
+                                      text: _isRegister
+                                          ? 'Já possui uma conta? '
+                                          : 'Ainda não tem cadastro? ',
+                                      style: const TextStyle(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                    const TextSpan(
+                                      text: 'Clique aqui',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
           if (_loading)
