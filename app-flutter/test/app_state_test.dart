@@ -82,23 +82,13 @@ void main() {
 
     test('stores optimized route on success', () async {
       final client = MockClient((request) async {
-        expect(request.url.host, 'maps.googleapis.com');
+        expect(request.url.host, 'routes.googleapis.com');
         return http.Response(
           jsonEncode({
-            'status': 'OK',
             'routes': [
               {
-                'waypoint_order': [0],
-                'legs': [
-                  {
-                    'duration': {'value': 600},
-                    'distance': {'value': 1200},
-                  },
-                  {
-                    'duration': {'value': 900},
-                    'distance': {'value': 1800},
-                  },
-                ],
+                'duration': '600s',
+                'distanceMeters': 1200,
               },
             ],
           }),
@@ -110,30 +100,20 @@ void main() {
       await state.optimizeRoute(['Rua A', 'Rua B']);
 
       expect(state.optimizedRoute, isNotNull);
-      expect(state.optimizedRoute!.stops.length, 3);
+      expect(state.optimizedRoute!.stops.length, 2);
       expect(state.optimizedRoute!.stops.first.address, 'Rua A');
-      expect(state.optimizedRoute!.stops.last.address, 'Rua A');
-      expect(state.optimizedRoute!.totalTime, '25min');
+      expect(state.optimizedRoute!.stops.last.address, 'Rua B');
+      expect(state.optimizedRoute!.totalTime, '10min');
     });
 
     test('notifies listeners on success', () async {
       final client = MockClient((request) async {
         return http.Response(
           jsonEncode({
-            'status': 'OK',
             'routes': [
               {
-                'waypoint_order': [0],
-                'legs': [
-                  {
-                    'duration': {'value': 60},
-                    'distance': {'value': 500},
-                  },
-                  {
-                    'duration': {'value': 60},
-                    'distance': {'value': 500},
-                  },
-                ],
+                'duration': '60s',
+                'distanceMeters': 500,
               },
             ],
           }),
@@ -149,25 +129,15 @@ void main() {
     });
 
     test('normalizes addresses before sending', () async {
-      Uri? requestUri;
+      Map<String, dynamic>? requestBody;
       final client = MockClient((request) async {
-        requestUri = request.url;
+        requestBody = jsonDecode(request.body) as Map<String, dynamic>;
         return http.Response(
           jsonEncode({
-            'status': 'OK',
             'routes': [
               {
-                'waypoint_order': [0],
-                'legs': [
-                  {
-                    'duration': {'value': 60},
-                    'distance': {'value': 500},
-                  },
-                  {
-                    'duration': {'value': 60},
-                    'distance': {'value': 500},
-                  },
-                ],
+                'duration': '60s',
+                'distanceMeters': 500,
               },
             ],
           }),
@@ -178,15 +148,15 @@ void main() {
       final state = _createState(client: client);
       await state.optimizeRoute([' A ', ' B ', '']);
 
-      expect(requestUri, isNotNull);
-      expect(requestUri!.queryParameters['origin'], 'A');
-      expect(requestUri!.queryParameters['destination'], 'A');
-      expect(requestUri!.queryParameters['waypoints'], 'optimize:true|B');
+      expect(requestBody, isNotNull);
+      expect(requestBody!['origin'], {'address': 'A'});
+      expect(requestBody!['destination'], {'address': 'B'});
+      expect(requestBody!.containsKey('intermediates'), isFalse);
     });
 
     test('stores route from OpenAI fallback when Google fails', () async {
       final client = MockClient((request) async {
-        if (request.url.host == 'maps.googleapis.com') {
+        if (request.url.host == 'routes.googleapis.com') {
           return http.Response('unavailable', 503);
         }
 
@@ -204,7 +174,6 @@ void main() {
                       'stops': [
                         {'address': 'Rua A'},
                         {'address': 'Rua B'},
-                        {'address': 'Rua A'},
                       ],
                     }),
                   },
@@ -222,7 +191,7 @@ void main() {
       expect(state.optimizedRoute, isNotNull);
       expect(
         state.optimizedRoute!.stops.map((stop) => stop.address).toList(),
-        ['Rua A', 'Rua B', 'Rua A'],
+        ['Rua A', 'Rua B'],
       );
       expect(state.optimizedRoute!.totalTime, 'Estimado 20 min');
     });

@@ -7,8 +7,10 @@ import 'firebase_options.dart';
 import 'screens/address_input_screen.dart';
 import 'screens/auth_gate.dart';
 import 'screens/auth_screen.dart';
-import 'screens/confirm_screen.dart';
+import 'screens/home_screen.dart';
 import 'screens/result_screen.dart';
+import 'screens/saved_routes_screen.dart';
+import 'screens/settings_screen.dart';
 import 'state/app_state.dart';
 import 'theme/app_theme.dart';
 
@@ -47,8 +49,10 @@ class RotaOtimizadaApp extends StatelessWidget {
         home: FirebaseBootstrap(initialization: firebaseInitialization),
         routes: {
           AppRoutes.login: (_) => const AuthScreen(),
+          AppRoutes.home: (_) => const HomeScreen(),
           AppRoutes.addressInput: (_) => const AddressInputScreen(),
-          AppRoutes.confirm: (_) => const ConfirmScreen(),
+          AppRoutes.savedRoutes: (_) => const SavedRoutesScreen(),
+          AppRoutes.settings: (_) => const SettingsScreen(),
           AppRoutes.result: (_) => const ResultScreen(),
         },
       ),

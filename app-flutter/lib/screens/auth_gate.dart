@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
-import 'address_input_screen.dart';
 import 'auth_screen.dart';
+import 'home_screen.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -24,7 +24,7 @@ class AuthGate extends StatelessWidget {
           return const AuthScreen();
         }
 
-        return const AddressInputScreen();
+        return const HomeScreen();
       },
     );
   }

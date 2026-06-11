@@ -111,35 +111,92 @@ void main() {
   group('ApiService.optimizeRoute', () {
     test('returns Google-optimized route on valid response', () async {
       final client = MockClient((request) async {
-        expect(request.url.host, 'maps.googleapis.com');
-        expect(request.url.path, '/maps/api/directions/json');
-        expect(request.url.queryParameters['origin'], 'Origem');
-        expect(request.url.queryParameters['destination'], 'Origem');
+        expect(request.url.host, 'routes.googleapis.com');
+        expect(request.url.path, '/directions/v2:computeRoutes');
+        expect(request.method, 'POST');
+        expect(request.headers['X-Goog-Api-Key'], 'google-key');
         expect(
-          request.url.queryParameters['waypoints'],
-          'optimize:true|Destino A|Destino B',
+          request.headers['X-Goog-FieldMask'],
+          'routes.duration,routes.distanceMeters,routes.optimizedIntermediateWaypointIndex',
+        );
+
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['origin'], {'address': 'Origem'});
+        expect(body['destination'], {'address': 'Destino C'});
+        expect(body['travelMode'], 'DRIVE');
+        expect(body['languageCode'], 'pt-BR');
+        expect(body['units'], 'METRIC');
+        expect(body['optimizeWaypointOrder'], true);
+        expect(body['routingPreference'], 'TRAFFIC_AWARE');
+        expect(
+          DateTime.parse(body['departureTime'] as String).isUtc,
+          isTrue,
+        );
+        expect(
+          body['intermediates'],
+          [
+            {'address': 'Destino A'},
+            {'address': 'Destino B'},
+          ],
         );
 
         return http.Response(
           jsonEncode({
-            'status': 'OK',
             'routes': [
               {
-                'waypoint_order': [1, 0],
-                'legs': [
-                  {
-                    'duration': {'value': 600},
-                    'distance': {'value': 2000},
-                  },
-                  {
-                    'duration': {'value': 900},
-                    'distance': {'value': 3000},
-                  },
-                  {
-                    'duration': {'value': 300},
-                    'distance': {'value': 2000},
-                  },
-                ],
+                'optimizedIntermediateWaypointIndex': [1, 0],
+                'duration': '2100s',
+                'distanceMeters': 7500,
+              },
+            ],
+          }),
+          200,
+        );
+      });
+
+      final service = _createService(client);
+      final route = await service.optimizeRoute([
+        'Origem',
+        'Destino A',
+        'Destino B',
+        'Destino C',
+      ]);
+
+      expect(
+        route.stops.map((stop) => stop.address).toList(),
+        ['Origem', 'Destino B', 'Destino A', 'Destino C'],
+      );
+      expect(route.totalTime, '35min');
+      expect(route.totalDistance, '7.5 km');
+      expect(route.numberOfStops, 4);
+      expect(route.mapsUrl, isNotEmpty);
+    });
+
+    test('does not request waypoint optimization for one intermediate',
+        () async {
+      final client = MockClient((request) async {
+        expect(
+          request.headers['X-Goog-FieldMask'],
+          'routes.duration,routes.distanceMeters',
+        );
+
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['routingPreference'], 'TRAFFIC_AWARE');
+        expect(body['intermediates'], [
+          {'address': 'Destino A'},
+        ]);
+        expect(body.containsKey('optimizeWaypointOrder'), isFalse);
+        expect(
+          DateTime.parse(body['departureTime'] as String).isUtc,
+          isTrue,
+        );
+
+        return http.Response(
+          jsonEncode({
+            'routes': [
+              {
+                'duration': '1500s',
+                'distanceMeters': 5000,
               },
             ],
           }),
@@ -156,17 +213,13 @@ void main() {
 
       expect(
         route.stops.map((stop) => stop.address).toList(),
-        ['Origem', 'Destino B', 'Destino A', 'Origem'],
+        ['Origem', 'Destino A', 'Destino B'],
       );
-      expect(route.totalTime, '30min');
-      expect(route.totalDistance, '7.0 km');
-      expect(route.numberOfStops, 4);
-      expect(route.mapsUrl, isNotEmpty);
     });
 
     test('falls back to OpenAI when Google request fails', () async {
       final client = MockClient((request) async {
-        if (request.url.host == 'maps.googleapis.com') {
+        if (request.url.host == 'routes.googleapis.com') {
           return http.Response('gateway error', 502);
         }
 
@@ -189,7 +242,6 @@ void main() {
             {'originalIndex': 1},
             {'originalIndex': 3},
             {'originalIndex': 2},
-            {'originalIndex': 1},
           ],
         });
       });
@@ -207,7 +259,7 @@ void main() {
 
       expect(
         route.stops.map((stop) => stop.address).toList(),
-        ['Origem', 'Destino B', 'Destino A', 'Origem'],
+        ['Origem', 'Destino A', 'Destino B'],
       );
       expect(route.totalTime, 'Estimado 35 min');
       expect(route.totalDistance, 'Estimado 8 km');
@@ -216,7 +268,7 @@ void main() {
     test('preserves original address text when OpenAI returns indexes',
         () async {
       final client = MockClient((request) async {
-        if (request.url.host == 'maps.googleapis.com') {
+        if (request.url.host == 'routes.googleapis.com') {
           return http.Response('gateway error', 502);
         }
 
@@ -227,7 +279,6 @@ void main() {
             {'originalIndex': 1},
             {'originalIndex': 3},
             {'originalIndex': 2},
-            {'originalIndex': 1},
           ],
         });
       });
@@ -243,9 +294,8 @@ void main() {
         route.stops.map((stop) => stop.address).toList(),
         [
           'Rua São João, 10 - Centro',
-          'Praça XV, 5',
           'Av. Brasil, 200',
-          'Rua São João, 10 - Centro',
+          'Praça XV, 5',
         ],
       );
     });
@@ -253,7 +303,7 @@ void main() {
     test('repairs OpenAI index route when it omits stops or returns extras',
         () async {
       final client = MockClient((request) async {
-        if (request.url.host == 'maps.googleapis.com') {
+        if (request.url.host == 'routes.googleapis.com') {
           return http.Response('gateway error', 502);
         }
 
@@ -265,7 +315,7 @@ void main() {
             {'originalIndex': 3},
             {'originalIndex': 99},
             {'originalIndex': 3},
-            {'originalIndex': 1},
+            {'originalIndex': 4},
           ],
         });
       });
@@ -280,14 +330,14 @@ void main() {
 
       expect(
         route.stops.map((stop) => stop.address).toList(),
-        ['Origem', 'Destino B', 'Destino A', 'Destino C', 'Origem'],
+        ['Origem', 'Destino B', 'Destino A', 'Destino C'],
       );
     });
 
     test('accepts legacy OpenAI addresses with harmless text differences',
         () async {
       final client = MockClient((request) async {
-        if (request.url.host == 'maps.googleapis.com') {
+        if (request.url.host == 'routes.googleapis.com') {
           return http.Response('gateway error', 502);
         }
 
@@ -298,7 +348,6 @@ void main() {
             {'address': 'rua sao joao 10 centro'},
             {'address': 'praca xv 5'},
             {'address': 'av brasil 200'},
-            {'address': 'RUA SAO JOAO, 10 - CENTRO'},
           ],
         });
       });
@@ -314,40 +363,9 @@ void main() {
         route.stops.map((stop) => stop.address).toList(),
         [
           'Rua São João, 10 - Centro',
-          'Praça XV, 5',
           'Av. Brasil, 200',
-          'Rua São João, 10 - Centro',
+          'Praça XV, 5',
         ],
-      );
-    });
-
-    test('adds return to origin when OpenAI omits final origin stop', () async {
-      final client = MockClient((request) async {
-        if (request.url.host == 'maps.googleapis.com') {
-          return http.Response('gateway error', 502);
-        }
-
-        return _openAiStructuredResponse({
-          'totalTime': 'Estimado 35 min',
-          'totalDistance': 'Estimado 8 km',
-          'stops': [
-            {'address': 'Origem'},
-            {'address': 'Destino B'},
-            {'address': 'Destino A'},
-          ],
-        });
-      });
-
-      final service = _createService(client);
-      final route = await service.optimizeRoute([
-        'Origem',
-        'Destino A',
-        'Destino B',
-      ]);
-
-      expect(
-        route.stops.map((stop) => stop.address).toList(),
-        ['Origem', 'Destino B', 'Destino A', 'Origem'],
       );
     });
 
@@ -371,10 +389,10 @@ void main() {
         'throws addressNotFound when Google finds no route and fallback is invalid',
         () async {
       final client = MockClient((request) async {
-        if (request.url.host == 'maps.googleapis.com') {
+        if (request.url.host == 'routes.googleapis.com') {
           return http.Response(
             jsonEncode({
-              'status': 'ZERO_RESULTS',
+              'routes': [],
             }),
             200,
           );
@@ -385,7 +403,7 @@ void main() {
           'totalDistance': 'Estimado 3 km',
           'stops': [
             {'address': 'Origem'},
-            {'address': 'Destino A'},
+            {'address': 'Invalido'},
           ],
         });
       });

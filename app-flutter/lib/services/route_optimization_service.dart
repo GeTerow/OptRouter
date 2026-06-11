@@ -12,26 +12,27 @@ import 'base_api_service.dart';
 import 'maps_link_builder.dart';
 
 /// Serviço focado na reordenação otimizada de paradas em uma rota de entrega.
-/// Tenta utilizar a API oficial do Google Directions e, em caso de falha ou indisponibilidade,
-/// recorre a um fallback inteligente e pessimista utilizando a API do OpenAI.
+/// Tenta utilizar a Routes API oficial do Google Maps Platform e, em caso de falha
+/// ou indisponibilidade, recorre a um fallback inteligente e pessimista
+/// utilizando a API do OpenAI.
 class RouteOptimizationService extends BaseApiService {
   RouteOptimizationService({
     required super.client,
     required String googleMapsApiKey,
     required String openAiApiKey,
     required String openAiRouteModel,
-    required Uri googleDirectionsUri,
+    required Uri googleRoutesUri,
     required Uri openAiResponsesUri,
   })  : _googleMapsApiKey = googleMapsApiKey,
         _openAiApiKey = openAiApiKey,
         _openAiRouteModel = openAiRouteModel,
-        _googleDirectionsUri = googleDirectionsUri,
+        _googleRoutesUri = googleRoutesUri,
         _openAiResponsesUri = openAiResponsesUri;
 
   final String _googleMapsApiKey;
   final String _openAiApiKey;
   final String _openAiRouteModel;
-  final Uri _googleDirectionsUri;
+  final Uri _googleRoutesUri;
   final Uri _openAiResponsesUri;
 
   /// Inicia a otimização lógica da rota para a lista de endereços informada.
@@ -48,22 +49,13 @@ class RouteOptimizationService extends BaseApiService {
           );
         }
 
-        final List<String> normalizedAddresses;
-        if (addresses.isNotEmpty && addresses.first != addresses.last) {
-          normalizedAddresses = [...addresses, addresses.first];
-        } else {
-          normalizedAddresses = List.of(addresses);
-        }
+        final normalizedAddresses = List.of(addresses);
 
-        debugLog('Otimizando rota: tentando Google Directions.');
-        final googleAttempt = await _tryOptimizeWithGoogleMaps(normalizedAddresses);
+        final googleAttempt =
+            await _tryOptimizeWithGoogleMaps(normalizedAddresses);
         if (googleAttempt.route != null) {
-          debugLog('Otimizacao concluida pelo Google Directions.');
           return googleAttempt.route!;
         }
-        debugLog(
-          'Google Directions falhou (${googleAttempt.kind.name}): ${googleAttempt.message ?? 'sem detalhe'}',
-        );
 
         if (_openAiApiKey.isEmpty) {
           if (googleAttempt.kind ==
@@ -82,33 +74,46 @@ class RouteOptimizationService extends BaseApiService {
         }
 
         try {
-          debugLog(
-            'Google Directions nao retornou rota utilizavel. Tentando fallback OpenAI.',
-          );
           return await _optimizeWithOpenAi(normalizedAddresses);
         } on FormatException catch (error) {
+          final technicalMessage =
+              _googleFallbackTechnicalMessage(googleAttempt, error.message);
           if (googleAttempt.kind ==
               _GoogleOptimizationAttemptKind.addressNotFound) {
             throw AppFailure(
               kind: AppFailureKind.addressNotFound,
               message: 'Nenhuma rota encontrada para os endereços informados.',
-              technicalMessage: error.message,
+              technicalMessage: technicalMessage,
             );
           }
-          rethrow;
-        } on AppFailure catch (error) {
-          if (googleAttempt.kind !=
-              _GoogleOptimizationAttemptKind.addressNotFound) {
-            rethrow;
-          }
 
+          throw AppFailure(
+            kind: AppFailureKind.invalidResponse,
+            message: 'Resposta inválida de um serviço externo.',
+            technicalMessage: technicalMessage,
+          );
+        } on AppFailure catch (error) {
           if (error.kind == AppFailureKind.invalidResponse ||
               error.kind == AppFailureKind.server ||
               error.kind == AppFailureKind.unknown) {
+            final technicalMessage = _googleFallbackTechnicalMessage(
+              googleAttempt,
+              error.toString(),
+            );
+            if (googleAttempt.kind !=
+                _GoogleOptimizationAttemptKind.addressNotFound) {
+              throw AppFailure(
+                kind: error.kind,
+                message: error.message,
+                statusCode: error.statusCode,
+                technicalMessage: technicalMessage,
+              );
+            }
+
             throw AppFailure(
               kind: AppFailureKind.addressNotFound,
               message: 'Nenhuma rota encontrada para os endereços informados.',
-              technicalMessage: error.toString(),
+              technicalMessage: technicalMessage,
             );
           }
 
@@ -118,7 +123,7 @@ class RouteOptimizationService extends BaseApiService {
     );
   }
 
-  /// Tenta otimizar a rota usando a API do Google Directions.
+  /// Tenta otimizar a rota usando a Routes API do Google Maps Platform.
   Future<_GoogleOptimizationAttempt> _tryOptimizeWithGoogleMaps(
     List<String> addresses,
   ) async {
@@ -129,61 +134,44 @@ class RouteOptimizationService extends BaseApiService {
     }
 
     try {
-      final intermediates = addresses.length > 2
-          ? addresses.sublist(1, addresses.length - 1)
-          : <String>[];
-      final queryParams = <String, String>{
-        'origin': addresses.first,
-        'destination': addresses.last,
-        'mode': 'driving',
-        'departure_time': 'now',
-        'language': 'pt-BR',
-        'key': _googleMapsApiKey,
-      };
-      if (intermediates.isNotEmpty) {
-        queryParams['waypoints'] =
-            'optimize:true|${intermediates.join('|')}';
-      }
+      final shouldOptimizeWaypoints = _shouldOptimizeWaypoints(addresses);
       final response = await client
-          .get(
-            _googleDirectionsUri.replace(
-              queryParameters: queryParams,
+          .post(
+            _googleRoutesUri,
+            headers: _googleRoutesHeaders(
+              includeWaypointOrder: shouldOptimizeWaypoints,
             ),
+            body: jsonEncode(_buildGoogleRoutesRequest(addresses)),
           )
           .timeout(AppConfig.mapsTimeout);
-      debugLog(
-        'Google Directions HTTP ${response.statusCode}: ${truncateForLog(response.body)}',
-      );
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        return _GoogleOptimizationAttempt.failed(
-          extractProviderMessage(response.body),
+        debugPrint(
+          '[Routes API] HTTP ${response.statusCode}: ${response.body}',
         );
+        final message = extractProviderMessage(response.body);
+        if (_isGoogleRoutesAddressNotFoundMessage(message)) {
+          return _GoogleOptimizationAttempt.addressNotFound(message);
+        }
+        return _GoogleOptimizationAttempt.failed(message);
       }
 
       final decoded = decodeJsonObject(
         response.body,
-        endpoint: 'Google Directions',
+        endpoint: 'Google Routes',
       );
-      final status = (decoded['status'] as String?)?.trim() ?? '';
-
-      if (status == 'OK') {
-        return _GoogleOptimizationAttempt.success(
-          _parseGoogleRoute(
-            decoded,
-            originalAddresses: addresses,
-          ),
-        );
-      }
-
-      if (_isGoogleAddressNotFoundStatus(status)) {
+      final routes = decoded['routes'];
+      if (routes is! List || routes.isEmpty) {
         return _GoogleOptimizationAttempt.addressNotFound(
-          status.isEmpty ? 'Nenhuma rota encontrada.' : status,
+          _extractGoogleRoutesMessage(decoded),
         );
       }
 
-      return _GoogleOptimizationAttempt.failed(
-        _extractGoogleStatusMessage(decoded, status),
+      return _GoogleOptimizationAttempt.success(
+        _parseGoogleRoute(
+          decoded,
+          originalAddresses: addresses,
+        ),
       );
     } on TimeoutException catch (error) {
       return _GoogleOptimizationAttempt.failed(error.toString());
@@ -203,9 +191,6 @@ class RouteOptimizationService extends BaseApiService {
           body: jsonEncode(_buildRouteOptimizationRequest(addresses)),
         )
         .timeout(AppConfig.openAiRouteTimeout);
-    debugLog(
-      'OpenAI route HTTP ${response.statusCode}: ${truncateForLog(response.body)}',
-    );
 
     throwIfFailed(
       response,
@@ -248,75 +233,112 @@ class RouteOptimizationService extends BaseApiService {
     );
   }
 
-  /// Faz o parsing da rota retornada pelo Google Directions API.
+  /// Monta o payload da Routes API preservando o comportamento do app atual.
+  Map<String, dynamic> _buildGoogleRoutesRequest(List<String> addresses) {
+    final intermediates = addresses.length > 2
+        ? addresses.sublist(1, addresses.length - 1)
+        : const <String>[];
+    final shouldOptimizeWaypoints = _shouldOptimizeWaypoints(addresses);
+
+    // Gera o timestamp RFC 3339 sem frações de segundo.
+    // Adiciona 1 minuto para garantir que o horário seja sempre futuro
+    // quando a requisição chegar ao servidor do Google.
+    final now = DateTime.now().toUtc().add(const Duration(minutes: 1));
+    final departureTime =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}'
+        'T${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}Z';
+
+    return {
+      'origin': {
+        'address': addresses.first,
+      },
+      'destination': {
+        'address': addresses.last,
+      },
+      if (intermediates.isNotEmpty)
+        'intermediates': [
+          for (final address in intermediates) {'address': address},
+        ],
+      'travelMode': 'DRIVE',
+      'routingPreference': 'TRAFFIC_AWARE',
+      'departureTime': departureTime,
+      'languageCode': 'pt-BR',
+      'units': 'METRIC',
+      if (shouldOptimizeWaypoints) 'optimizeWaypointOrder': true,
+    };
+  }
+
+  /// A Routes API só precisa otimizar quando há mais de uma parada reordenável.
+  bool _shouldOptimizeWaypoints(List<String> addresses) {
+    return addresses.length > 3;
+  }
+
+  /// Mantém o erro original do Google visível quando o fallback também falha.
+  String _googleFallbackTechnicalMessage(
+    _GoogleOptimizationAttempt googleAttempt,
+    String fallbackMessage,
+  ) {
+    final googleMessage = googleAttempt.message?.trim();
+    if (googleMessage == null || googleMessage.isEmpty) {
+      return fallbackMessage;
+    }
+
+    return 'Google Routes: $googleMessage; fallback: $fallbackMessage';
+  }
+
+  /// Cabeçalhos exigidos pela Routes API.
+  Map<String, String> _googleRoutesHeaders({
+    required bool includeWaypointOrder,
+  }) {
+    final routeFields = [
+      'routes.duration',
+      'routes.distanceMeters',
+      if (includeWaypointOrder) 'routes.optimizedIntermediateWaypointIndex',
+    ];
+
+    return {
+      'Content-Type': 'application/json; charset=utf-8',
+      'X-Goog-Api-Key': _googleMapsApiKey,
+      'X-Goog-FieldMask': routeFields.join(','),
+    };
+  }
+
+  /// Faz o parsing da rota retornada pela Routes API.
   OptimizedRoute _parseGoogleRoute(
     Map<String, dynamic> decoded, {
     required List<String> originalAddresses,
   }) {
     final routes = decoded['routes'];
     if (routes is! List || routes.isEmpty) {
-      throw const FormatException('Google Directions sem rotas retornadas.');
+      throw const FormatException('Google Routes sem rotas retornadas.');
     }
 
     final firstRoute = routes.first;
     if (firstRoute is! Map) {
-      throw const FormatException('Google Directions retornou rota inválida.');
+      throw const FormatException('Google Routes retornou rota inválida.');
     }
 
     final route = Map<String, dynamic>.from(firstRoute);
-    final waypointOrderRaw = route['waypoint_order'];
-    final legsRaw = route['legs'];
-    if (waypointOrderRaw is! List || legsRaw is! List) {
-      throw const FormatException(
-          'Google Directions retornou rota incompleta.');
-    }
-
-    final waypointOrder =
-        waypointOrderRaw.map((value) => (value as num?)?.toInt()).toList();
-    if (waypointOrder.any((value) => value == null)) {
-      throw const FormatException(
-          'Google Directions retornou waypoint_order inválido.');
-    }
-
     final intermediates = originalAddresses.length > 2
         ? originalAddresses.sublist(1, originalAddresses.length - 1)
         : <String>[];
+    final waypointOrder = _extractGoogleWaypointOrder(
+      route,
+      intermediatesLength: intermediates.length,
+    );
     final orderedStops = <String>[originalAddresses.first];
-    for (final index in waypointOrder.cast<int>()) {
+    for (final index in waypointOrder) {
       if (index < 0 || index >= intermediates.length) {
         throw const FormatException(
-            'Google Directions retornou waypoint fora do intervalo.');
+            'Google Routes retornou waypoint fora do intervalo.');
       }
       orderedStops.add(intermediates[index]);
     }
     orderedStops.add(originalAddresses.last);
 
-    if (legsRaw.length != orderedStops.length - 1) {
-      throw const FormatException(
-          'Google Directions retornou legs inconsistentes.');
-    }
-
-    var totalSeconds = 0;
-    var totalMeters = 0;
-    for (final legValue in legsRaw) {
-      if (legValue is! Map) {
-        throw const FormatException('Google Directions retornou leg inválida.');
-      }
-
-      final leg = Map<String, dynamic>.from(legValue);
-      final duration = _extractNestedInt(
-        leg,
-        parentKey: 'duration',
-        childKey: 'value',
-      );
-      final distance = _extractNestedInt(
-        leg,
-        parentKey: 'distance',
-        childKey: 'value',
-      );
-      totalSeconds += duration;
-      totalMeters += distance;
-    }
+    final totalSeconds = _extractDurationSeconds(route['duration']);
+    final totalMeters =
+        _extractInt(route['distanceMeters'], fieldName: 'distanceMeters');
 
     return _buildOptimizedRoute(
       orderedStops,
@@ -325,7 +347,7 @@ class RouteOptimizationService extends BaseApiService {
     );
   }
 
-  /// Instancia o objeto [OptimizedRoute] contendo as paradas e o link do Google Maps Directions.
+  /// Instancia o objeto [OptimizedRoute] contendo as paradas e o link do Google Maps.
   OptimizedRoute _buildOptimizedRoute(
     List<String> orderedAddresses, {
     required String totalTime,
@@ -366,7 +388,11 @@ class RouteOptimizationService extends BaseApiService {
         '- Para totalDistance: Estime uma quilometragem folgada, adicionando uma margem de segurança (considerando desvios e busca por vagas).',
         '- Para totalTime: Estime um tempo de transito bem folgado e pessimista, somando pelo menos 25% a 30% a mais do que o tempo de transito livre (considerando semaforos, transito pesado e o tempo de estacionar/desembarcar em cada parada).',
         'Retorne totalTime and totalDistance como estimativas textuais pessimistas em portugues (ex: "55 min" ou "1h 10min" e "15.4 km").',
+        'Pesquise as localizacoes que voce nao tem muita ideia de onde sao (lugares mais desconhecidos ou imprecisos) usando a ferramenta web_search para dar a rota otimizada mais corretamente.',
       ].join(' '),
+      'tools': [
+        {'type': 'web_search'}
+      ],
       'input': [
         {
           'role': 'user',
@@ -378,6 +404,7 @@ class RouteOptimizationService extends BaseApiService {
                 'A rota deve comecar no primeiro endereco (origem), visitar os intermediarios na melhor ordem, e terminar no ultimo endereco (destino).',
                 'Use originalIndex 1 para a origem no primeiro stop e originalIndex ${addresses.length} para o destino no ultimo stop.',
                 'Seja bastante pessimista nas estimativas finais de totalDistance e totalTime: adicione uma margem de seguranca folgada para cobrir imprevistos como semaforos, transito pesado, procura por vagas de estacionamento e o tempo gasto em cada entrega.',
+                'Pesquise na web (usando a ferramenta web_search) sobre os locais mais desconhecidos ou imprecisos da lista para obter suas localizacoes exatas antes de planejar a rota.',
                 for (var i = 0; i < addresses.length; i++)
                   '${i + 1}. ${addresses[i]}',
               ].join('\n'),
@@ -427,23 +454,68 @@ class RouteOptimizationService extends BaseApiService {
     };
   }
 
-  /// Extrai chaves inteiras aninhadas dentro da resposta do Google Directions (ex: legs[i].duration.value).
-  int _extractNestedInt(
-    Map<String, dynamic> source, {
-    required String parentKey,
-    required String childKey,
+  /// Lê a ordem otimizada dos waypoints retornada pela Routes API.
+  List<int> _extractGoogleWaypointOrder(
+    Map<String, dynamic> route, {
+    required int intermediatesLength,
   }) {
-    final parent = source[parentKey];
-    if (parent is! Map) {
-      throw FormatException('Campo $parentKey ausente na resposta.');
+    if (intermediatesLength == 0) {
+      return const <int>[];
     }
 
-    final value = parent[childKey];
+    final rawOrder = route['optimizedIntermediateWaypointIndex'];
+    if (rawOrder == null) {
+      return List<int>.generate(intermediatesLength, (index) => index);
+    }
+
+    if (rawOrder is! List) {
+      throw const FormatException(
+        'Google Routes retornou optimizedIntermediateWaypointIndex inválido.',
+      );
+    }
+
+    final waypointOrder =
+        rawOrder.map((value) => (value as num?)?.toInt()).toList();
+    if (waypointOrder.any((value) => value == null)) {
+      throw const FormatException(
+        'Google Routes retornou optimizedIntermediateWaypointIndex inválido.',
+      );
+    }
+
+    if (waypointOrder.length != intermediatesLength) {
+      throw const FormatException(
+        'Google Routes retornou quantidade inválida de waypoints otimizados.',
+      );
+    }
+
+    return waypointOrder.cast<int>();
+  }
+
+  /// Extrai um inteiro plano da resposta da Routes API.
+  int _extractInt(
+    dynamic value, {
+    required String fieldName,
+  }) {
     if (value is! num) {
-      throw FormatException('Campo $parentKey.$childKey ausente na resposta.');
+      throw FormatException('Campo $fieldName ausente na resposta.');
     }
 
     return value.toInt();
+  }
+
+  /// Converte um campo protobuf Duration (ex: "1500s") em segundos inteiros.
+  int _extractDurationSeconds(dynamic value) {
+    if (value is! String || value.trim().isEmpty || !value.endsWith('s')) {
+      throw const FormatException('Campo duration ausente na resposta.');
+    }
+
+    final rawSeconds = value.substring(0, value.length - 1);
+    final parsed = num.tryParse(rawSeconds);
+    if (parsed == null) {
+      throw const FormatException('Campo duration inválido na resposta.');
+    }
+
+    return parsed.round();
   }
 
   /// Normaliza as paradas geradas pelo OpenAI para garantir integridade e alinhar com o formato original.
@@ -496,9 +568,7 @@ class RouteOptimizationService extends BaseApiService {
 
     if (normalized.length == originalAddresses.length &&
         normalized.last != destination) {
-      final withoutDest = normalized
-          .where((a) => a != destination)
-          .toList();
+      final withoutDest = normalized.where((a) => a != destination).toList();
       withoutDest.add(destination);
       return withoutDest;
     }
@@ -674,24 +744,26 @@ class RouteOptimizationService extends BaseApiService {
         .replaceAll(RegExp(r'\s+'), ' ');
   }
 
-  /// Extrai a mensagem de erro da resposta decodificada do Google Directions API.
-  String _extractGoogleStatusMessage(
-      Map<String, dynamic> decoded, String status) {
-    final errorMessage = decoded['error_message'];
-    if (errorMessage is String && errorMessage.trim().isNotEmpty) {
-      return errorMessage;
+  /// Extrai a mensagem de erro da resposta decodificada da Routes API.
+  String _extractGoogleRoutesMessage(Map<String, dynamic> decoded) {
+    final message = decoded['error']?['message'];
+    if (message is String && message.trim().isNotEmpty) {
+      return message;
     }
 
-    if (status.isNotEmpty) {
-      return 'Google Directions retornou $status.';
-    }
-
-    return 'Google Directions não retornou uma rota válida.';
+    return 'Google Routes não retornou uma rota válida.';
   }
 
-  /// Verifica se o status retornado pelo Google indica endereço não encontrado ou rota inexistente.
-  bool _isGoogleAddressNotFoundStatus(String status) {
-    return status == 'ZERO_RESULTS' || status == 'NOT_FOUND';
+  /// Identifica erros do provedor que significam ausência de rota ou endereço.
+  bool _isGoogleRoutesAddressNotFoundMessage(String message) {
+    final normalized = message.trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+
+    return normalized.contains('no route found') ||
+        normalized.contains('route not found') ||
+        normalized.contains('zero results') ||
+        normalized.contains('not found') ||
+        normalized.contains('could not geocode');
   }
 
   /// Formata segundos inteiros em uma string amigável de duração de trânsito.

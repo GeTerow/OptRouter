@@ -4,19 +4,29 @@ import '../config/app_config.dart';
 import '../domain/address_rules.dart';
 import '../domain/app_failure.dart';
 import '../domain/optimized_route.dart';
+import '../domain/route_draft.dart';
+import '../domain/user_settings.dart';
 import '../domain/stop.dart';
 import '../services/api_service.dart';
+import '../services/route_draft_service.dart';
 
 class AppState extends ChangeNotifier {
-  AppState({ApiService? apiService}) : _apiService = apiService ?? ApiService();
+  AppState({
+    ApiService? apiService,
+    RouteDraftService? routeDraftService,
+  })  : _apiService = apiService ?? ApiService(),
+        _routeDraftService = routeDraftService;
 
   final ApiService _apiService;
+  final RouteDraftService? _routeDraftService;
 
   List<String> _addresses = const [];
   OptimizedRoute? _optimizedRoute;
+  String? _routeDraftId;
 
   List<String> get addresses => _addresses;
   OptimizedRoute? get optimizedRoute => _optimizedRoute;
+  String? get routeDraftId => _routeDraftId;
 
   void setAddresses(List<String> addresses) {
     _addresses = List.unmodifiable(AddressRules.normalize(addresses));
@@ -25,6 +35,46 @@ class AppState extends ChangeNotifier {
 
   void clearRoute() {
     _optimizedRoute = null;
+    notifyListeners();
+  }
+
+  void beginRouteDraft(UserSettings settings) {
+    _routeDraftId = null;
+    _optimizedRoute = null;
+    _addresses = List.unmodifiable(
+      AddressRules.normalize([
+        settings.defaultOrigin,
+        settings.defaultDestination,
+      ]),
+    );
+    notifyListeners();
+  }
+
+  void loadRouteDraft({
+    required String routeId,
+    required List<String> addresses,
+  }) {
+    _routeDraftId = routeId;
+    _optimizedRoute = null;
+    _addresses = List.unmodifiable(AddressRules.normalize(addresses));
+    notifyListeners();
+  }
+
+  void clearCurrentDraft() {
+    _routeDraftId = null;
+    _optimizedRoute = null;
+    _addresses = const [];
+    notifyListeners();
+  }
+
+  Future<void> saveRouteDraft(RouteDraft draft) async {
+    final service = _routeDraftService ?? RouteDraftService();
+    _routeDraftId = await service.saveRouteDraft(
+      draft,
+      routeId: _routeDraftId,
+    );
+    _addresses =
+        List.unmodifiable(AddressRules.normalize(draft.orderedAddresses));
     notifyListeners();
   }
 
@@ -78,6 +128,16 @@ class AppState extends ChangeNotifier {
     _addresses = List.unmodifiable(merged);
     notifyListeners();
     return extracted;
+  }
+
+  Future<List<String>> extractAddressesFromImageBytes(
+    Uint8List bytes, {
+    required String filename,
+  }) {
+    return _apiService.scanAddressImageBytes(
+      bytes,
+      filename: filename,
+    );
   }
 
   @override

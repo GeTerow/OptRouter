@@ -112,7 +112,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   void _enterApp() {
-    Navigator.of(context).pushReplacementNamed(AppRoutes.addressInput);
+    Navigator.of(context).pushReplacementNamed(AppRoutes.home);
   }
 
   @override
@@ -177,7 +177,8 @@ class _AuthScreenState extends State<AuthScreen> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.primary.withValues(alpha: 0.3),
+                                  color:
+                                      AppColors.primary.withValues(alpha: 0.3),
                                   blurRadius: 20,
                                   offset: const Offset(0, 8),
                                 ),
@@ -292,13 +293,13 @@ class _AuthScreenState extends State<AuthScreen> {
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.next,
                               decoration: appInputDecoration(
-                                  'E-mail',
-                                  prefixIcon: const Icon(
-                                    Icons.mail_outline_rounded,
-                                    color: AppColors.textMuted,
-                                    size: 22,
-                                  ),
+                                'E-mail',
+                                prefixIcon: const Icon(
+                                  Icons.mail_outline_rounded,
+                                  color: AppColors.textMuted,
+                                  size: 22,
                                 ),
+                              ),
                             ),
                             const SizedBox(height: 14),
                             TextField(
@@ -332,7 +333,8 @@ class _AuthScreenState extends State<AuthScreen> {
                                   color: AppColors.textMuted,
                                   onPressed: () {
                                     setState(
-                                      () => _obscurePassword = !_obscurePassword,
+                                      () =>
+                                          _obscurePassword = !_obscurePassword,
                                     );
                                   },
                                 ),
@@ -341,8 +343,12 @@ class _AuthScreenState extends State<AuthScreen> {
                             const SizedBox(height: 28),
                             // Primary Action Button (now automatically uses premium gradient/glow)
                             AppButton(
-                              label: _isRegister ? 'Criar minha conta' : 'Entrar na conta',
-                              icon: _isRegister ? Icons.person_add_alt_rounded : Icons.login_rounded,
+                              label: _isRegister
+                                  ? 'Criar minha conta'
+                                  : 'Entrar na conta',
+                              icon: _isRegister
+                                  ? Icons.person_add_alt_rounded
+                                  : Icons.login_rounded,
                               onPressed: _loading ? null : _submit,
                             ),
                             const SizedBox(height: 24),
@@ -351,7 +357,8 @@ class _AuthScreenState extends State<AuthScreen> {
                               children: [
                                 Expanded(
                                   child: Divider(
-                                    color: AppColors.border.withValues(alpha: 0.5),
+                                    color:
+                                        AppColors.border.withValues(alpha: 0.5),
                                     thickness: 1,
                                   ),
                                 ),
@@ -369,7 +376,8 @@ class _AuthScreenState extends State<AuthScreen> {
                                 ),
                                 Expanded(
                                   child: Divider(
-                                    color: AppColors.border.withValues(alpha: 0.5),
+                                    color:
+                                        AppColors.border.withValues(alpha: 0.5),
                                     thickness: 1,
                                   ),
                                 ),
@@ -389,7 +397,8 @@ class _AuthScreenState extends State<AuthScreen> {
                                     },
                               style: TextButton.styleFrom(
                                 foregroundColor: AppColors.primary,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -481,10 +490,14 @@ class _MapRoutePainter extends CustomPainter {
     canvas.drawPath(path1, paint);
 
     // Node points on Route 1
-    canvas.drawCircle(Offset(size.width * 0.1, size.height * 0.15), 6.5, dotPaint);
-    canvas.drawCircle(Offset(size.width * 0.35, size.height * 0.35), 7.5, dotPaint);
-    canvas.drawCircle(Offset(size.width * 0.8, size.height * 0.52), 6.5, dotPaint);
-    canvas.drawCircle(Offset(size.width * 0.9, size.height * 0.78), 8.5, dotPaint);
+    canvas.drawCircle(
+        Offset(size.width * 0.1, size.height * 0.15), 6.5, dotPaint);
+    canvas.drawCircle(
+        Offset(size.width * 0.35, size.height * 0.35), 7.5, dotPaint);
+    canvas.drawCircle(
+        Offset(size.width * 0.8, size.height * 0.52), 6.5, dotPaint);
+    canvas.drawCircle(
+        Offset(size.width * 0.9, size.height * 0.78), 8.5, dotPaint);
 
     // Route 2 (Secondary route in the bottom region)
     final path2 = Path()
@@ -505,9 +518,12 @@ class _MapRoutePainter extends CustomPainter {
     canvas.drawPath(path2, paint);
 
     // Node points on Route 2
-    canvas.drawCircle(Offset(size.width * 0.85, size.height * 0.12), 6.5, dotPaint);
-    canvas.drawCircle(Offset(size.width * 0.65, size.height * 0.48), 7.5, dotPaint);
-    canvas.drawCircle(Offset(size.width * 0.2, size.height * 0.86), 8.5, dotPaint);
+    canvas.drawCircle(
+        Offset(size.width * 0.85, size.height * 0.12), 6.5, dotPaint);
+    canvas.drawCircle(
+        Offset(size.width * 0.65, size.height * 0.48), 7.5, dotPaint);
+    canvas.drawCircle(
+        Offset(size.width * 0.2, size.height * 0.86), 8.5, dotPaint);
   }
 
   @override

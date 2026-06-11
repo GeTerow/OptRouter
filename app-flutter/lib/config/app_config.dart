@@ -8,7 +8,7 @@ class AppConfig {
   static const openAiApiKey = String.fromEnvironment('OPENAI_API_KEY');
   static const openAiRouteModel = String.fromEnvironment(
     'OPENAI_ROUTE_MODEL',
-    defaultValue: 'gpt-5.4-mini-2026-03-17',
+    defaultValue: 'gpt-5.4-2026-03-05',
   );
   static const openAiScanModel = String.fromEnvironment(
     'OPENAI_SCAN_MODEL',

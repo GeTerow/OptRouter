@@ -18,9 +18,9 @@ class ApiService {
     String? openAiApiKey,
     String? openAiRouteModel,
     String? openAiScanModel,
-    Uri? googleDirectionsUri,
+    Uri? googleRoutesUri,
     Uri? openAiResponsesUri,
-  })  : _client = client ?? http.Client() {
+  }) : _client = client ?? http.Client() {
     final actualGoogleMapsApiKey =
         (googleMapsApiKey ?? AppConfig.googleMapsApiKey).trim();
     final actualOpenAiApiKey = (openAiApiKey ?? AppConfig.openAiApiKey).trim();
@@ -28,8 +28,11 @@ class ApiService {
         (openAiRouteModel ?? AppConfig.openAiRouteModel).trim();
     final actualOpenAiScanModel =
         (openAiScanModel ?? AppConfig.openAiScanModel).trim();
-    final actualGoogleDirectionsUri = googleDirectionsUri ??
-        Uri.https('maps.googleapis.com', '/maps/api/directions/json');
+    final actualGoogleRoutesUri = googleRoutesUri ??
+        Uri.https(
+          'routes.googleapis.com',
+          '/directions/v2:computeRoutes',
+        );
     final actualOpenAiResponsesUri =
         openAiResponsesUri ?? Uri.https('api.openai.com', '/v1/responses');
 
@@ -45,7 +48,7 @@ class ApiService {
       googleMapsApiKey: actualGoogleMapsApiKey,
       openAiApiKey: actualOpenAiApiKey,
       openAiRouteModel: actualOpenAiRouteModel,
-      googleDirectionsUri: actualGoogleDirectionsUri,
+      googleRoutesUri: actualGoogleRoutesUri,
       openAiResponsesUri: actualOpenAiResponsesUri,
     );
   }

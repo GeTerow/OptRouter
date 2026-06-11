@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 import '../domain/app_failure.dart';
 
 /// Classe base abstrata para serviços de API externos.
-/// Oferece infraestrutura comum para requisições HTTP, logs de depuração e conversão de erros.
+/// Oferece infraestrutura comum para requisições HTTP e tratamento de erros.
 abstract class BaseApiService {
   BaseApiService({
     required http.Client client,
@@ -63,13 +63,13 @@ abstract class BaseApiService {
     required String operationLabel,
     required String variableName,
   }) {
-    if (apiKey.isNotEmpty) return;
-
-    throw AppFailure(
-      kind: AppFailureKind.configuration,
-      message:
-          'A chave $variableName não foi configurada para $operationLabel.',
-    );
+    if (apiKey.isEmpty) {
+      throw AppFailure(
+        kind: AppFailureKind.configuration,
+        message:
+            'A chave $variableName não foi configurada para $operationLabel.',
+      );
+    }
   }
 
   /// Lança um [AppFailure] caso a resposta HTTP indique erro.
@@ -84,9 +84,9 @@ abstract class BaseApiService {
     throw AppFailure(
       kind: AppFailureKind.server,
       statusCode: response.statusCode,
-      message: message.isEmpty
-          ? 'Falha em $providerName (${response.statusCode}).'
-          : message,
+      message: message.isNotEmpty
+          ? message
+          : 'Falha em $providerName (${response.statusCode}).',
       technicalMessage: 'HTTP ${response.statusCode}: ${response.body}',
     );
   }
@@ -97,39 +97,27 @@ abstract class BaseApiService {
     String body, {
     required String endpoint,
   }) {
-    final decoded = decodeJsonObject(body, endpoint: endpoint);
-    final output = decoded['output'];
-    if (output is! List) {
-      debugLog('$endpoint sem lista output: ${truncateForLog(body)}');
-      throw FormatException('Resposta inválida do $endpoint.');
-    }
+    try {
+      final decoded = jsonDecode(body) as Map<String, dynamic>;
+      final output = decoded['output'] as List;
 
-    for (final itemValue in output) {
-      if (itemValue is! Map) continue;
-      final item = Map<String, dynamic>.from(itemValue);
-      if (item['type'] != 'message') continue;
+      for (final item in output.cast<Map<String, dynamic>>()) {
+        if (item['type'] != 'message') continue;
+        final content = item['content'] as List;
 
-      final content = item['content'];
-      if (content is! List) continue;
-
-      for (final partValue in content) {
-        if (partValue is! Map) continue;
-        final part = Map<String, dynamic>.from(partValue);
-        final type = part['type'];
-
-        if (type == 'refusal') {
-          throw const FormatException('A OpenAI recusou a solicitação.');
-        }
-
-        if (type == 'output_text') {
-          final text = (part['text'] as String?)?.trim();
-          if (text == null || text.isEmpty) continue;
-          debugLog('$endpoint output_text: ${truncateForLog(text)}');
-          return decodeJsonObject(text, endpoint: endpoint);
+        for (final part in content.cast<Map<String, dynamic>>()) {
+          if (part['type'] == 'refusal') {
+            throw const FormatException('A OpenAI recusou a solicitação.');
+          }
+          if (part['type'] == 'output_text') {
+            final text = (part['text'] as String?)?.trim();
+            if (text != null && text.isNotEmpty) {
+              return jsonDecode(text) as Map<String, dynamic>;
+            }
+          }
         }
       }
-    }
-
+    } catch (_) {}
     throw FormatException('Resposta inválida do $endpoint.');
   }
 
@@ -151,7 +139,7 @@ abstract class BaseApiService {
   Map<String, String> jsonHeaders({required String bearerToken}) {
     return {
       'Authorization': 'Bearer $bearerToken',
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json; charset=utf-8',
     };
   }
 
@@ -159,48 +147,19 @@ abstract class BaseApiService {
   @protected
   String extractProviderMessage(String body) {
     if (body.trim().isEmpty) return '';
-
     try {
       final decoded = jsonDecode(body);
       if (decoded is Map) {
-        final directMessage = decoded['message'];
-        if (directMessage is String && directMessage.trim().isNotEmpty) {
-          return directMessage;
-        }
-
-        final error = decoded['error'];
-        if (error is String && error.trim().isNotEmpty) {
-          return error;
-        }
-
-        if (error is Map) {
-          final nestedMessage = error['message'];
-          if (nestedMessage is String && nestedMessage.trim().isNotEmpty) {
-            return nestedMessage;
-          }
+        final message = decoded['message'] ??
+            decoded['error']?['message'] ??
+            decoded['error'];
+        if (message is String && message.trim().isNotEmpty) {
+          return message;
         }
       }
-    } catch (_) {
-      // Retorna o corpo original caso não seja JSON decodificável.
-    }
-
+    } catch (_) {}
     return body;
   }
-
-  /// Registra logs no console apenas em ambiente de depuração.
-  @protected
-  void debugLog(String message) {
-    if (kDebugMode) {
-      debugPrint('[ApiService] $message');
-    }
-  }
-
-  /// Trunca strings excessivamente longas para não sobrecarregar os logs do console.
-  @protected
-  String truncateForLog(String value) {
-    const maxLength = 1200;
-    final compact = value.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (compact.length <= maxLength) return compact;
-    return '${compact.substring(0, maxLength)}...';
-  }
 }
+
+
